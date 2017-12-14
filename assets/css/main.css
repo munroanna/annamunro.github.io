@@ -1251,7 +1251,7 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		text-decoration: none;
-		background: #b1ddab;
+		background: #949494;
 		color: #fff;
 		border: 0;
 		line-height: 1em;
@@ -1278,7 +1278,7 @@
 		input[type="reset"]:active,
 		button:active,
 		.button:active {
-			background: #a1cd9b;
+			background: #949494;
 		}
 
 		input[type="button"].alt,
@@ -1532,7 +1532,7 @@
 		form input[type="password"]:focus,
 		form select:focus,
 		form textarea:focus {
-			border-color: #a1cd9b;
+			border-color: #949494;
 		}
 
 	form input[type="text"],
@@ -1648,7 +1648,7 @@
 
 	#main-wrapper {
 		background: #fff;
-		border-top: solid 5px #b1ddab;
+		border-top: solid 5px #949494;
 		border-bottom: solid 5px #c1cac5;
 	}
 
@@ -2000,7 +2000,7 @@
 					}
 
 					#nav li.current a {
-						background: #b1ddab;
+						background: #949494;
 						color: #fff;
 					}
 
@@ -2527,7 +2527,7 @@
 						position: absolute;
 						left: 0;
 						top: 0;
-						background: #b1ddab;
+						background: #949494;
 						width: 44px;
 						height: 44px;
 						content: '\f0c9';
@@ -2538,7 +2538,7 @@
 					}
 
 					#titleBar .toggle:active:before {
-						background-color: #a1cd9b;
+						background-color: #949494;
 					}
 
 			#navPanel {
