@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # This is the default format.
 # For more see: https://github.com/mojombo/jekyll/wiki/Permalinks
 permalink: /:categories/:year/:month/:day/:title
@@ -18,7 +17,7 @@ author :
   feedburner : nil
 
 # NOTE: If replacing this next line with your own URL, you likely want "https://" not "http://"
-production_url : http://evanmunro.github.io
+production_url : http://evanmunro.github.io/
 
 # Tell Github to use the kramdown markdown interpreter
 # (see https://help.github.com/articles/migrating-your-pages-site-from-maruku)
@@ -53,7 +52,7 @@ JB :
   #     This means always setting the protocol (http|https) or prefixing with "/"
   #
   # NOTE: If replacing this next line with your own URL, you likely want "https://" not "http://"
-  BASE_PATH : http://evanmunro.ca
+  BASE_PATH : http://evanmunro.ca/
 
   # By default, the asset_path is automatically defined relative to BASE_PATH plus the enabled theme.
   # ex: [BASE_PATH]/assets/themes/[THEME-NAME]
@@ -106,6 +105,3 @@ JB :
   # and include your custom code. Your custom file must be defined at:
   #   ./_includes/custom/[HELPER]
   # where [HELPER] is the name of the helper you are overriding.
-=======
-theme: jekyll-theme-minimal
->>>>>>> 5741075feec9568dcab23b82c9582e41c7e156a0
