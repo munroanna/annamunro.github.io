@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html class="no-js">
+  <head>
+	<meta charset="utf-8">
+	<title>Using R and Tensorflow to understand gene expression in single cancer cells | Kieran R Campbell - blog</title>
+	<meta name="description" content="Table of Contents">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<!-- CSS -->
+	<link rel="stylesheet" href="/blog/css/main.css"> 
+
+	<!--Favicon-->
+	<link rel="shortcut icon" href="/blog/favicon.ico" type="image/x-icon">
+
+	<!-- Canonical -->
+	<link rel="canonical" href="http://kieranrcampbell.github.io/blog/2018/11/13/clonealign.html">
+
+	<!-- RSS -->
+	<link rel="alternate" type="application/atom+xml" title="Kieran R Campbell - blog" href="http://kieranrcampbell.github.io/blog/feed.xml" />
+
+	<!-- Font Awesome -->
+	<link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+
+	<!-- Bootstrap -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+	<!-- Google Fonts -->
+	
+	<link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700,700italic,400italic" rel="stylesheet" type="text/css">
+	
+
+	<!-- KaTeX -->
+	
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css">
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.js"></script>
+	
+
+	<!-- Google Analytics -->
+	
+
+
+</head>
+
+  <body>
+    <header class="site-header">
+		<div class="container">
+				<div class="header clearfix">
+				  <nav>
+					<ul class="nav nav-pills pull-right">
+					  <li class="nav-item">
+						<a class="nav-link" href="http://kieranrcampbell.github.io">Home</a>
+						</li>
+						<li class="nav-item">
+						<a class="nav-link" href="http://kieranrcampbell.github.io/blog">Archive</a>
+					  </li>             
+					</ul>
+				  </nav> 
+				  <h4>Kieran R Campbell &nbsp; &middot; &nbsp; Blog</h4>
+				</div>
+</header>
+
+    <div class="content">
+      <article >
+  <header style="background-image: url('/blog/')">
+    <h1 class="title">Using R and Tensorflow to understand gene expression in single cancer cells</h1>
+    <p class="meta">
+    November 13, 2018
+    
+    </p>
+  </header>
+  <section class="post-content"><h4>Table of Contents</h4>
+<ul id="markdown-toc">
+  <li><a href="#introduction" id="markdown-toc-introduction">Introduction</a></li>
+  <li><a href="#clonealign-linking-scrna-seq-to-scdna-seq" id="markdown-toc-clonealign-linking-scrna-seq-to-scdna-seq">clonealign: linking scRNA-seq to scDNA-seq</a></li>
+  <li><a href="#stochastic-gradient-variational-bayes-in-r-and-tensorflow" id="markdown-toc-stochastic-gradient-variational-bayes-in-r-and-tensorflow">Stochastic gradient variational Bayes in R and Tensorflow</a>    <ul>
+      <li><a href="#why-be-variational" id="markdown-toc-why-be-variational">Why be variational?</a></li>
+      <li><a href="#constructing-variational-distributions-using-the-reparametrization-trick" id="markdown-toc-constructing-variational-distributions-using-the-reparametrization-trick">Constructing variational distributions using the reparametrization trick</a></li>
+      <li><a href="#computing-the-lower-bound" id="markdown-toc-computing-the-lower-bound">Computing the lower bound</a></li>
+    </ul>
+  </li>
+  <li><a href="#clone-specific-gene-expression-in-triple-negative-breast-cancers" id="markdown-toc-clone-specific-gene-expression-in-triple-negative-breast-cancers">Clone-specific gene expression in triple-negative breast cancers</a></li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+
+<p>Massively parallel sequencing of nucelic acids in single cells using technologies such as 
+<a href="https://www.10xgenomics.com/solutions/single-cell/">10X genomics</a> for 
+<a href="https://en.wikipedia.org/wiki/RNA-Seq">RNA-seq</a> and 
+<a href="https://www.ncbi.nlm.nih.gov/pubmed/28068316">Direct Library Preparation (DLP)</a> for single-cell whole genome sequencing lets us understand the molecular properties of cancer cells. Ideally, we would like to understand how the sets of mutations in a tumour cell impact its gene expression, possibly causing it to become resistant to chemotherapy. However, the majority of scalable single-cell assays measure  gene expression and mutations in different cells, albeit from the same tumour.</p>
+
+<p>To solve this problem and link a tumour’s gene expression to its genomic profile, we developed <a href="https://www.github.com/kieranrcampbell/clonealign">clonealign</a>, a probabilistic model that assigns each cell measured using single-cell RNA-sequencing to a genomic clone (a set of cells with similar mutational profiles) measured using single-cell whole genome sequencing. This post introduces the clonealign model, stochastic gradient variational Bayesian inference, and sketches out how we used 
+<a href="https://tensorflow.rstudio.com/">Tensorflow</a>
+ to implement these as an R package for integration with other genomics tools.</p>
+
+<h2 id="clonealign-linking-scrna-seq-to-scdna-seq">clonealign: linking scRNA-seq to scDNA-seq</h2>
+
+<p>The key behind assigning cells measured using scRNAseq to those with scDNAseq is to make an assumption that links the copy number from the DNA-seq to the expression profile from the RNA-seq. The copy number can simply be thought of as the number of copies of each gene - in healthy cells this should be 2 (diploid), but in many cancers errors in DNA repair result in losses (copy number number less than 2) and amplifications (copy number greater than 2). Crucially, we look at regions of the genome where the copy number is <em>clone specific</em> and assume this has an impact on gene expression - genes in cells in a clone with copy number <script type="math/tex">3</script> will have <script type="math/tex">3/2</script> times more expression than those in a clone of copy number <script type="math/tex">2</script>:</p>
+
+<p><img src="/blog/img/clonealign/cnv-expression.png" width="60%" /></p>
+
+<p>Since we know the copy number of each clone in advance we can write this as a generative probabilistic model that looks similar to a mixture model. Essentially, the expected counts coming from a gene in a cell <em>given that cell is assigned to a clone</em> consists of some base expression of that gene multiplied by the copy number of that gene in that clone. We further model fixed effects (e.g. batch or sample specific covariates) and random effects that allow more gene expression variation to be explained than copy number alone. Given this probabilistic model, we can perform inference on the posterior distributions of the clonal assignments (detailed below), using a negative binomial likelihood model as is common for RNA-seq. Altogether, this gives us the clonealign model:</p>
+
+<p><img src="/blog/img/clonealign/clonealign-overview.png" width="80%" /></p>
+
+<h2 id="stochastic-gradient-variational-bayes-in-r-and-tensorflow">Stochastic gradient variational Bayes in R and Tensorflow</h2>
+
+<h3 id="why-be-variational">Why be variational?</h3>
+
+<p>We would like to perform inference on 
+<script type="math/tex">p(z_n | Y, \Lambda)</script> 
+– the posterior distribution of the clone assignments <script type="math/tex">z_n</script> given the gene expression data <script type="math/tex">Y</script> and copy number data <script type="math/tex">\Lambda</script>, marginalizing out all the model parameters <script type="math/tex">\Theta</script> such as mean expression of each gene and any covariate coefficients. However, this requires performing high-dimensional integration over the clone assignments and model parameters and is exceptionally hard to compute.</p>
+
+<p>Instead of computing 
+<script type="math/tex">p(z_n, \Theta  | Y, \Lambda)</script> 
+exactly, we turn to Variational Inference that seeks a <em>variational distribution</em> 
+<script type="math/tex">q(z, \Theta | \eta)</script> 
+of a tractable parametric family that approximates the full posterior, i.e. 
+<script type="math/tex">q(z, \Theta | \eta) \approx p(z_n, \Theta|Y, \Lambda)</script>.
+The quantities <script type="math/tex">\eta</script> are known as the <em>variational parameters</em>, and the trick of variational inference is to tweak these parameters so that the variational distribution looks as close to the posterior as possible. To do this we attempt to minimize a measure of divergence between the two distributions, known as the <a href="https://en.wikipedia.org/wiki/Kullback–Leibler_divergence">Kullback-Leibler divergence</a> defined as</p>
+
+<script type="math/tex; mode=display">\text{KL}\left[ q(z, \Theta | \eta) \|  p(z, \Theta|Y, \Lambda) \right]
+= \text{E}_{q(z, \Theta | \eta)}\left[ \log q(z, \Theta | \eta) - \log p(z, \Theta|Y, \Lambda) \right].</script>
+
+<p>While this still requires computing 
+<script type="math/tex">p(z|Y, \Lambda)</script> 
+– which we can’t do in the first place – the above objective is equivalent to minimizing</p>
+
+<script type="math/tex; mode=display">\text{E}_{q(z, \Theta | \eta)}\left[ \log q(z, \Theta | \eta) - \log p(Y, \Lambda | z, \Theta) - \log p(z, \Theta) \right]</script>
+
+<p>where we’ve applied Bayes rule to 
+<script type="math/tex">p(z, \Theta | Y, \Lambda)</script> 
+and the term 
+<script type="math/tex">p(Y, \Lambda)</script> 
+falls out of the objective as a constant (the real trick behind variational inference!).</p>
+
+<h3 id="constructing-variational-distributions-using-the-reparametrization-trick">Constructing variational distributions using the reparametrization trick</h3>
+
+<p>In practice we make a mean field assumption on the approximating distributions, so 
+<script type="math/tex">q(z, \Theta | \eta) = q(z | \eta_z) q(\Theta | \eta_\Theta)</script>. 
+As we will see shortly, the natural approximating distribution of <script type="math/tex">z</script> is categorical, allowing us to take the expectation above analytically. This means <script type="math/tex">q(z_n = c) = \psi_{nc}</script> - in other words, the probability that cell <script type="math/tex">n</script> is assigned to clone <script type="math/tex">c</script> takes the value <script type="math/tex">\psi_{nc}</script>, where <script type="math/tex">\psi</script> is a variational parameter to be optimized with the obvious constraint that <script type="math/tex">\sum_c \psi_{nc} = 1.</script> In Tensorflow we write this as</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">library</span><span class="p">(</span><span class="n">tensorflow</span><span class="p">)</span><span class="w">
+</span><span class="n">psi</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">nn</span><span class="o">$</span><span class="n">softmax</span><span class="p">(</span><span class="n">tf</span><span class="o">$</span><span class="n">Variable</span><span class="p">(</span><span class="n">tf</span><span class="o">$</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">shape</span><span class="p">(</span><span class="n">N</span><span class="p">,</span><span class="n">C</span><span class="p">))))</span><span class="w"> </span><span class="c1"># N cells and C clones</span></code></pre></figure>
+
+<p>Here we have created a <code>Variable</code> to be optimized (the variational parameter), instantiated to all zeros as an <script type="math/tex">N \times C</script> matrix (to match the shape of <script type="math/tex">\psi</script>), and pass it through the <a href="https://en.wikipedia.org/wiki/Softmax_function">softmax function</a> to ensure the probabilities for each cell sum to 1.</p>
+
+<p>We next look at the variational distributions for the model parameters, using <script type="math/tex">\mu_g</script> (the base expression of each gene) as an example. We can no longer take this bound analytically so must resort to a Monte Carlo approximation of the loss. To do this we use a method that originated with <a href="https://arxiv.org/abs/1312.6114">Variational Autoencoders</a>  known as the <em>reparametrization trick</em> that uncouples the randomness in the expression from the variational parameters. To do this, we must be able to write</p>
+
+<script type="math/tex; mode=display">\mu_g = g(\eta_{\mu_g}, \epsilon)</script>
+
+<p>where <script type="math/tex">\eta_\mu</script> are the variational parameters, <script type="math/tex">\epsilon</script> is a random variable independent of <script type="math/tex">\eta_\mu</script> and <script type="math/tex">g</script> is an invertible differentiable function. For our base expression parameters, we know that they must be positive (since gene expression is count data), and have unknown mean and variance, so we posit a transform of the form</p>
+
+<script type="math/tex; mode=display">\mu_g = \text{Softplus}(\nu_g + \sigma_g \epsilon)</script>
+
+<p>where <script type="math/tex">(\nu_g, \sigma_g) \equiv \eta_{\mu_g}</script> are the variational parameters analogous to the location and scale parameters in a transformed Gaussian  model, we sample <script type="math/tex">\epsilon \sim \mathcal{N}(0,1)</script> where <script type="math/tex">\mathcal{N}(0,1)</script> is the standard normal distribution, and <script type="math/tex">\text{Softplus}(x) = \log(1 + \exp(x))</script>. Then if <script type="math/tex">f(\mu)</script> represents the joint probability of the parameters and data (we drop the dependency on other parameters for simplicity) then we can evaluate the loss as</p>
+
+<script type="math/tex; mode=display">\text{E}_{q(\mu)} \left[ \log q(\mu) - \log f(\mu) \right] =
+\text{E}_{\epsilon \sim \mathcal{N}(0,1)}
+\left[ \log \left( \mathcal{N}(\epsilon | 0, 1) \frac{dg^{-1}}{d\eta_{\mu}\;\;\;}(  g(\eta_{\mu_g}, \epsilon) ) \right) - \log f( g(\eta_{\mu_g}, \epsilon) )\right],</script>
+
+<p>where the expectation comes from <script type="math/tex">S</script> Monte Carlo samples of <script type="math/tex">\epsilon</script>. While this looks complicated, it’s equivalent to the bound above where quanties are passed through <script type="math/tex">g</script> (to compute mu) or the inverse (to ensure the density of <script type="math/tex">q(\mu)</script> is correct). The good news is Tensorflow’s computation graph essentially handles this for us, thanks to some nice engineering on the part of the <a href="https://arxiv.org/abs/1711.10604">Tensorflow distributions</a> library. Therefore, we can implement it as</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">tfd</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">contrib</span><span class="o">$</span><span class="n">distributions</span><span class="w">
+</span><span class="n">tfb</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tfd</span><span class="o">$</span><span class="n">bijectors</span><span class="w">
+</span><span class="n">qmu</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tfd</span><span class="o">$</span><span class="n">TransformedDistribution</span><span class="p">(</span><span class="w">
+    </span><span class="n">bijector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tfb</span><span class="o">$</span><span class="n">Softplus</span><span class="p">(),</span><span class="w">
+    </span><span class="n">distribution</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tfd</span><span class="o">$</span><span class="n">Normal</span><span class="p">(</span><span class="n">loc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tfd</span><span class="o">$</span><span class="n">Variable</span><span class="p">(</span><span class="n">tf</span><span class="o">$</span><span class="n">zeros</span><span class="p">(</span><span class="n">G</span><span class="p">)),</span><span class="w"> 
+                              </span><span class="n">scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="nf">exp</span><span class="p">(</span><span class="n">tf</span><span class="o">$</span><span class="n">Variable</span><span class="p">(</span><span class="n">tf</span><span class="o">$</span><span class="n">zeros</span><span class="p">(</span><span class="n">G</span><span class="p">)))),</span><span class="w">
+    </span><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"qmu"</span><span class="w">
+</span><span class="p">)</span><span class="w">
+</span><span class="n">mu_samples</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">qmu</span><span class="o">$</span><span class="n">sample</span><span class="p">(</span><span class="n">S</span><span class="p">)</span></code></pre></figure>
+
+<p>The different parts of this implementation break down as follows:</p>
+<ul>
+  <li><code>bijector</code> specifies the softplus function we pass the variational parameters and <script type="math/tex">\epsilon</script> through - we could have also have specified <script type="math/tex">\nu_g + \sigma_g \epsilon</script> but this is taken care of by the normal distribution below</li>
+  <li><code>distribution</code> specifies the base distribution that is Gaussian with mean <script type="math/tex">\nu_g</script> and variance <script type="math/tex">\sigma_g</script> - since Tensorflow <em>defines</em> a Gaussian distribution with this mean and variance as the transform <script type="math/tex">\nu_g + \sigma_g \epsilon</script> with <script type="math/tex">\epsilon \sim \mathcal{N}(0,1)</script> this takes care of the inner statements in <script type="math/tex">g</script>. Note we pass the <code>Variable</code> for the scale (i.e. standard deviation) through an <code>exp</code> transformation to ensure it is positive. Both the mean and standard deviation are of length <code>G</code> for <script type="math/tex">G</script> genes – independent distributions for each gene</li>
+  <li><code>mu_samples</code> draws <script type="math/tex">S</script> sample of <script type="math/tex">\mu</script> to compute the lower bound</li>
+</ul>
+
+<h3 id="computing-the-lower-bound">Computing the lower bound</h3>
+
+<p>We can now use the quantities so far to compute our lower bound. Firstly, the <em>entropy</em> term
+<script type="math/tex">\text{E}_{q(\mu, z)} \log q(\mu, z)</script> becomes</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">E_log_q</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">reduce_sum</span><span class="p">(</span><span class="n">psi</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="nf">log</span><span class="p">(</span><span class="n">psi</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">reduce_sum</span><span class="p">(</span><span class="n">qmu</span><span class="o">$</span><span class="n">log_prob</span><span class="p">(</span><span class="n">mu_samples</span><span class="p">))</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">S</span></code></pre></figure>
+
+<p>where the first term (for <script type="math/tex">\psi</script>) is computed analytically while the second term (for <script type="math/tex">\mu</script>) is a stochastic estimate using Monte Carlo samples.</p>
+
+<p>We next sketch how to compute 
+<script type="math/tex">\text{E}_{q(\mu, z)} \log p(Y, \Lambda | \mu, z)</script>
+ – for the full code please see <a href="https://www.github.com/kieranrcampbell/clonealign">clonealign on github</a>. First, we construct the expectation for the expression of Monte Carlo sample <script type="math/tex">S</script>, for clone <script type="math/tex">C</script>, and gene <script type="math/tex">G</script>:</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">L</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">placeholder</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">(</span><span class="n">G</span><span class="p">,</span><span class="n">C</span><span class="p">))</span><span class="w"> </span><span class="c1"># Copy number of gene g in clone c</span><span class="w">
+</span><span class="n">s</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">placeholder</span><span class="p">(</span><span class="n">shape</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">N</span><span class="p">)</span><span class="w"> </span><span class="c1"># Size factors for N cells</span><span class="w">
+</span><span class="n">expression_mean</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">einsum</span><span class="p">(</span><span class="s1">'sg,gc-&gt;scg'</span><span class="p">,</span><span class="w"> </span><span class="n">mu_samples</span><span class="p">,</span><span class="w"> </span><span class="n">L</span><span class="p">)</span><span class="w">
+</span><span class="n">expression_mean</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">einsum</span><span class="p">(</span><span class="s1">'n,scg-&gt;scng'</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">expression_mean</span><span class="p">)</span></code></pre></figure>
+
+<p>and then compute the log likelihood for the observed gene expression data <code>Y</code> in each Monte Carlo sample, clone, gene, and cell after converting to a different parameterization of the Negative Binomial distribution:</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">Y</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">placeholder</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">(</span><span class="n">N</span><span class="p">,</span><span class="n">G</span><span class="p">))</span><span class="w"> </span><span class="c1"># cell by gene placeholder for raw counts</span><span class="w">
+</span><span class="n">dispersion</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">ones</span><span class="p">(</span><span class="m">1</span><span class="p">)</span><span class="w">
+</span><span class="n">p</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">expression_mean</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="p">(</span><span class="n">expression_mean</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dispersion</span><span class="p">)</span><span class="w">
+</span><span class="n">log_prob</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tfd</span><span class="o">$</span><span class="n">NegativeBinomial</span><span class="p">(</span><span class="n">probs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">total_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">dispersion</span><span class="p">)</span><span class="o">$</span><span class="n">log_prob</span><span class="p">(</span><span class="n">Y</span><span class="p">)</span></code></pre></figure>
+
+<p>where we have set the dispersion parameters to 1 for convenience but in practice model this using spline functions.</p>
+
+<p>We are now in a position to compute the expectations with respect to <script type="math/tex">z</script> and <script type="math/tex">\mu</script>. As mentioned above, we can take the expectation over <script type="math/tex">z</script> analytically, giving</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">E_log_p</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">einsum</span><span class="p">(</span><span class="s1">'nc,scng-&gt;sg'</span><span class="p">,</span><span class="n">psi</span><span class="p">,</span><span class="n">log_prob</span><span class="p">)</span><span class="w"> </span></code></pre></figure>
+
+<p>followed by the expectation over <script type="math/tex">\mu</script> using an MC estimate:</p>
+
+<figure class="highlight"><pre><code class="language-r" data-lang="r"><span class="n">E_log_p</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="n">tf</span><span class="o">$</span><span class="n">reduce_sum</span><span class="p">(</span><span class="n">E_log_p</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">S</span></code></pre></figure>
+
+<p>Finally, we implement a similar strategy for the priors, before wrapping it all up into a tensor named <code>elbo</code> (short for Evidence Lower BOund), which we then maximize using the Adam optimizer built in to Tensorflow.</p>
+
+<h2 id="clone-specific-gene-expression-in-triple-negative-breast-cancers">Clone-specific gene expression in triple-negative breast cancers</h2>
+
+<p>By applying the above inference framework to single-cell RNA-seq and single-cell DNA-seq from triple negative breast cancer patient-derived xenografts (PDXs) we were able to assign gene expression states to cancer clones. Crucially, from <a href="https://www.nature.com/articles/nature13952">previous work</a> we knew that one of the clones (clone A) had higher <em>fitness</em> and expanded over time. By applying clonealign we were able to associate gene expression patterns with this expansion:</p>
+
+<p><img src="/blog/img/clonealign/de_mhc-class-i.png" width="50%" /></p>
+
+<p>Remarkably, the entire MHC class-i complex is downregulated in clone A, a mechanism by which cells can hide proteins from cytotoxic T-cells known as <em>immune escape</em>. Therefore, the clonealign statistical framework enables us to associate the fitness landscape of tumour cells with functional changes to their transcriptional profile.</p>
+
+<p>Clonealign is available as <a href="https://www.github.com/kieranrcampbell/clonealign">an R package</a> and a (slightly outdated) <a href="https://biorxiv.org/content/early/2018/06/11/344309">preprint</a>.</p>
+
+</section>
+</article>
+
+<!-- Post navigation -->
+
+
+<!-- Disqus -->
+
+
+<!-- Muut -->
+
+    </div>
+    
+<script src="/blog/js/katex_init.js"></script>
+
+
+
+
+  </body>
+</html>

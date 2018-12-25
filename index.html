@@ -14,6 +14,17 @@
 
     <link href="narrow-jumbotron.css" rel="stylesheet">
 
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=UA-131395533-1"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'UA-131395533-1');
+    </script>
+
     <link href="estyle.css" rel="stylesheet">
 
     <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
@@ -23,7 +34,7 @@
       <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
     <!-- Google analytics -->
-    
+
 
   </head>
   <body>
@@ -32,28 +43,33 @@
           <nav>
             <ul class="nav nav-pills pull-right">
               <li class="nav-item">
-                <a class="nav-link active" href="#">Home <span class="sr-only">(current)</span></a>
+                  <a class="nav-link active" href="#">Home <span class="sr-only">(current)</span></a>
+              </li>
+              <li class="nav-item">
+                  <a class="nav-link" href="#wps">Research</a>
               </li>
               <li class="nav-item">
                   <a class="nav-link" href="files/emunro-cv.pdf">CV</a>
               </li>
-                         
+              <li class="nav-item">
+                  <a class="nav-link" href="blog.html">Blog</a>
+              </li>
+
             </ul>
-          </nav> 
+          </nav>
           <h3 class="text-muted">Evan Munro</h3>
         </div>
 
         <div class="row marketing">
             <div class="col-sm-8">
-                <p>I am a first-year PhD student in Economics at Stanford GSB. I recently graduated with an MPhil in Economics from Oxford University, where my thesis was on the performance of  boosting and lasso under multicollinearity. Before that, I was an analyst at Goldman Sachs in a credit derivatives trading group known as Principal Funding and Investment. I completed my B.A. at Columbia University, where my research with Prof. Serena Ng focused on empirical macroeconomics and big data. 
-                <p>My current research is on applications of machine learning to economics, especially the use of latent variable models to estimate hidden factors that drive consumers and firms' behavior and expectations. </p> 
-            
-                <p> 
+                <p>I am a first-year PhD student in Economics at Stanford GSB. I recently graduated with an MPhil in Economics from Oxford University, where my thesis was on the performance of  boosting and lasso under multicollinearity. I completed my B.A. at Columbia University, where my research with Prof. Serena Ng focused on empirical macroeconomics and big data.
+                <p>My current research is on applications of machine learning to economics, especially the use of Bayesian latent variable models to estimate structural econometric models. </p>
+
+                <p>
                     <center>
-                    <a href="https://www.twitter.com/evanmunro93"><i class="fa fa-twitter fa-2x"></i></a> &nbsp;&nbsp;
                     <a href="https://www.github.com/evanmunro"><i class="fa fa-github fa-2x"></i></a> &nbsp;&nbsp;
                     <a href="https://www.linkedin.com/in/evan-munro-a731a546"><i class="fa fa-linkedin fa-2x" aria-hidden="true"></i></a> &nbsp;&nbsp;
-                        <a href="mailto:evan.munro@gmail.com"><i class="fa fa-envelope-o fa-2x" aria-hidden="true"></i></a> &nbsp;&nbsp;
+                        <a href="mailto:munro@stanford.edu"><i class="fa fa-envelope-o fa-2x" aria-hidden="true"></i></a> &nbsp;&nbsp;
                     </center>
                 </p>
             </div>
@@ -63,8 +79,63 @@
                 </center>
             </div>
         </div>
-        
-    
+
+        <div class="row marketing">
+                <a name="wps"></a>
+                <h3> </h3>
+                <p class="text-muted">
+                </p>
+                <h4> Working Papers </h4>
+
+                <!-- clonealign -->
+                <div class="panel panel-default">
+                        <div class="panel-body">
+                             <strong> Hierarchical Latent Variable Models for Economic Survey Data (with Serena Ng)</strong>
+                            <p class="text-primary">
+                                <strong> </strong>
+                             </p>
+                            <p class="text-muted">
+                                 Existing methods for extracting summary indexes
+                                 from multivariate discrete data are generally ad-hoc, often treating discrete variables as if they were continuous.
+                                 We introduce Bayesian structural models for estimating indexes from time series survey data and extract
+                                 insights from the Gallup World Poll Social Series and the Michigan Survey of Consumers.
+                            <div class="btn-group-xs">
+                                <a href="files/discreteTS.pdf" class="btn btn-default">Paper</a>
+                                <a href="https://github.com/evanmunro/multinomial-ts-paper" class="btn btn-default">Code</a>
+                                <a href="https://github.com/evanmunro/dhlvm" class="btn btn-default">R package</a>
+                            </div>
+                        </div>
+                </div>
+
+                <div class="row marketing">
+                        <a name="projs"></a>
+                        <h3> </h3>
+                        <p class="text-muted">
+                        </p>
+                        <h4> Research Projects </h4>
+
+                        <!-- clonealign -->
+                        <div class="panel panel-default">
+                                <div class="panel-body">
+                                     <strong> Deep Learning for Restaurant Choice </strong>
+                                    <p class="text-primary">
+                                        <strong> </strong>
+                                     </p>
+                                    <p class="text-muted">
+                                         The state of the art methods in predicting consumer choice are Bayesian matrix factorization methods.
+                                         This projects explores challenges and opportunities with using neural networks with embedding layers to predict restaurant choice from a
+                                         large dataset of individual lunch choices in the Bay Area.
+                                         Written in PyTorch and submitted as the final project for Stanford's Deep Learning class (CS230).
+                                    <div class="btn-group-xs">
+                                        <a href="files/restaurantChoice.pdf" class="btn btn-default">Paper</a>
+                                        <a href="https://github.com/evanmunro/restaurant-choice" class="btn btn-default">Code</a>
+                                    </div>
+                                </div>
+                        </div>
+
+
+
+
     </div>
 
 
